@@ -1,15 +1,18 @@
 import bitarray
 from bitstring import BitArray
 
-def bitEncode(text):
+# Перевод байтов в двоичную запись
+def bitEncode(bytes):
   ba = bitarray.bitarray()
-  ba.frombytes(text.encode("utf-8"))
+  ba.frombytes(bytes)
   return ba.to01()
 
+# Перевод двоичной записи в байты
 def bitDecode(bitcode):
   b = BitArray(bin=bitcode)
-  return b.bytes.decode("utf-8")
+  return b.bytes
 
+# Вспомогательная функция перестановки блока бит по заданной таблице
 def toPattern(block, pattern):
   output = ""
 
@@ -18,10 +21,12 @@ def toPattern(block, pattern):
   
   return output
 
+# Разбиение множества бит на блоки по 64
 def toBlocks(bitcode):
   output = []
   mod = len(bitcode) % 64
 
+  # Если последний блок имеет недостаточную длину, то он дополняется нулевыми битами
   if (mod != 0):
     for i in range(0, int(mod / 8)):
       bitcode += "00000000"
@@ -33,17 +38,20 @@ def toBlocks(bitcode):
 
   return output
 
+# Соединение блоков бит в единое множество
 def bitcodeFromBlocks(blocks):
   output = ""
 
   for block in blocks:
     output += block
 
+  # Удаление нулевых бит, добавленных ранее
   while (output.endswith("00000000")):
     output = output[:-8]
   
   return output
 
+# Функция начальной перестановки битов
 def initialPermutation(block):
   return toPattern(block, [
     58, 50, 42, 34, 26, 18, 10, 2, 60, 52, 44, 36, 28, 20, 12, 4,
@@ -52,6 +60,7 @@ def initialPermutation(block):
     61, 53, 45, 37, 29, 21, 13, 5, 63, 55, 47, 39, 31, 23, 15, 7
   ])
 
+# Функция обратной перестановки битов
 def endingPermutation(block):
   return toPattern(block, [
     40, 8, 48, 16, 56, 24, 64, 32, 39, 7, 47, 15, 55, 23, 63, 31,
@@ -60,6 +69,7 @@ def endingPermutation(block):
     34, 2, 42, 10, 50, 18, 58, 26, 33, 1, 41, 9,  49, 17, 57, 25
   ])
 
+# Функция расширения блока в 32 бит до 48
 def E(block):
   return toPattern(block, [
     32, 1,  2,  3,  4,  5,
@@ -72,13 +82,16 @@ def E(block):
     28, 29, 30, 31, 32, 1
   ])
 
+# Преобразование строкового ключа в набор из 16 битовых ключей
 def generateKeys(key):
   if (len(key) != 7):
     raise Exception("Key length must be exactly 7 characters")
 
-  bitcode = bitEncode(key)
+  bitcode = bitEncode(key.encode("utf-8"))
   key64 = ""
 
+  # Дополнение ключа битами так, чтобы каждый байт содержал
+  # нечетное количество единиц
   for i in range(0, 7):
     byte = bitcode[i * 8:(i + 1) * 8]
 
@@ -89,6 +102,7 @@ def generateKeys(key):
     
     key64 += byte
   
+  # Перестановка расширенного ключа
   key56 = toPattern(key64, [
     57, 49, 41, 33, 25, 17, 9,  1,  58, 50, 42, 34, 26, 18,
     10, 2,  59, 51, 43, 35, 27, 19, 11, 3,  60, 52, 44, 36,
@@ -98,6 +112,7 @@ def generateKeys(key):
 
   keys = []
 
+  # Проведение левого циклического сдвига по заданной таблице
   C, D = key56[:28], key56[28:]
 
   shiftOffset = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1]
@@ -107,6 +122,7 @@ def generateKeys(key):
     C, D = leftShift(C, offset), leftShift(D, offset)
     keys.append([C, D])
   
+  # Конечная перестановка ключей
   pattern = [
     14, 17, 11, 24, 1,  5,  3,  28, 15, 6,  21, 10, 23, 19, 12, 4,
     26, 8,  16, 7,  27, 20, 13, 2,  41, 52, 31, 37, 47, 55, 30, 40,
@@ -120,11 +136,13 @@ def generateKeys(key):
     output.append(toPattern(key56, pattern))
 
   return output
-  
+
+# Вспомогательная функция проведения левого циклического сдвига
 def leftShift(key, offset):
   chars = key[:offset]
   return key[offset:] + chars
 
+# Проведение операции XOR (Исключающего ИЛИ) для двух блоков бит
 def xor(a, b):
   if (len(a) != len(b)):
     raise Exception("A length not equal to B length")
@@ -139,6 +157,7 @@ def xor(a, b):
   
   return output
 
+# Функция F, использующаяся в раунде сети Фейстеля
 def F(block, key):
   bitcode = E(block)
   bitcode = xor(bitcode, key)
@@ -155,6 +174,7 @@ def F(block, key):
     19, 13, 30, 6,  22, 11, 4,  25
   ])
 
+# Функции преобразования для S-box'ов
 SPatterns = [
   [
     [14, 4, 13, 1, 2, 15, 11, 8, 3, 10, 6, 12, 5, 9, 0, 7],
@@ -206,62 +226,82 @@ SPatterns = [
   ]
 ]
 
+# Функции преобразования S-box
 def S(i, block):
   pattern = SPatterns[i]
 
+  # Первый и последний разряды составляют номер строки (0-3)
   row = int(block[0] + block[5], 2)
+  # Остальные разряды - номер столбца (0-15)
   column = int(block[1:5], 2)
 
+  # Полученное число преобразуется в двоичное
   return "{0:04b}".format(pattern[row][column])
 
+# Функция Фейстеля
 def feistel(block, keys):
+  # Проведение начальной перестановки блока
   block = initialPermutation(block)
 
   output = ""
 
   L, R = block[:32], block[32:]
 
+  # Проведение 16 раундов функции Фейстеля
   for i in range(0, 16):
     L = xor(L, F(R, keys[i]))
     L, R = R, L
 
   output = L + R
 
+  # Проведение конечной (обратной) перестановки блока
   return endingPermutation(output)
 
+# Обратная функция Фейстеля
 def fromFeistel(block, keys):
+  # Проведение начальной перестановки блока
   block = initialPermutation(block)
 
   output = ""
 
   L, R = block[:32], block[32:]
 
+  # Проведение 16 раундов обратной функции Фейстеля
   for i in range(15, -1, -1):
     L, R = R, L
     L = xor(L, F(R, keys[i]))
   
   output = L + R
 
+  # Проведение конечной (обратной) перестановки блока
   return endingPermutation(output)
 
+# Шифрование вектора инициализации из строки
 def generateIv(iv, keys):
-  return feistel(toBlocks(bitEncode(iv))[0], keys)
+  return feistel(toBlocks(bitEncode(iv.encode("utf-8")))[0], keys)
 
-def encodeDES(text, key, iv):
-  encoded = bitEncode(text)
+# Основная функция шифрования DES-OFB
+def encodeDES(bytes, key, iv):
+  encoded = bitEncode(bytes)
   blocks = toBlocks(encoded)
   keys = generateKeys(key)
   prevIv = generateIv(iv, keys)
 
   encodedBlocks = []
   
+  # Режим шифрования OFB
+  # Шифруется не сам блок, а инициализирующий вектор, причем многократно
+  # Полученное значение суммируется по модулю 2 с исходным блоком бит
   for block in blocks:
     encodedBlocks.append(xor(block, prevIv))
     prevIv = feistel(prevIv, keys)
   
-  return ''.join(encodedBlocks)
+  # Полученное значение возвращается в виде множества байт
+  return bitDecode(''.join(encodedBlocks))
 
-def decodeDes(bitcode, key, iv):
+# Основная функция расшифровки DES-OFB
+def decodeDES(bytes, key, iv):
+  bitcode = bitEncode(bytes)
   keys = generateKeys(key)
   blocks = toBlocks(bitcode)
   prevIv = generateIv(iv, keys)
