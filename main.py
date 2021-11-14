@@ -280,25 +280,33 @@ def fromFeistel(block, keys):
 
   return endingPermutation(output)
 
-def encodeDES(text, key):
+def generateIv(iv, keys):
+  return feistel(toBlocks(bitEncode(iv))[0], keys)
+
+def encodeDES(text, key, iv):
   encoded = bitEncode(text)
   blocks = toBlocks(encoded)
   keys = generateKeys(key)
+  prevIv = generateIv(iv, keys)
 
   encodedBlocks = []
   
   for block in blocks:
-    encodedBlocks.append(feistel(block, keys))
+    encodedBlocks.append(xor(block, prevIv))
+    prevIv = feistel(prevIv, keys)
   
   return ''.join(encodedBlocks)
 
-def decodeDes(bitcode, key):
+def decodeDes(bitcode, key, iv):
   keys = generateKeys(key)
   blocks = toBlocks(bitcode)
+  prevIv = generateIv(iv, keys)
+
   decodedBlocks = []
 
   for block in blocks:
-    decodedBlocks.append(fromFeistel(block, keys))
+    decodedBlocks.append(xor(block, prevIv))
+    prevIv = feistel(prevIv, keys)
 
   bitcode = bitcodeFromBlocks(decodedBlocks)
 
@@ -376,7 +384,7 @@ class TestEncoding(unittest.TestCase):
     self.assertEqual("Hello World!", bitDecode(bitcode))
 
   def test_des(self):
-    self.assertEqual("Hello World!", decodeDes(encodeDES("Hello World!", "abcdefg"), "abcdefg"))
+    self.assertEqual("Hello World!", decodeDes(encodeDES("Hello World!", "abcdefg", "foobar"), "abcdefg", "foobar"))
 
 if __name__ == "__main__":
   unittest.main()
