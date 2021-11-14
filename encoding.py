@@ -1,6 +1,5 @@
 import bitarray
 from bitstring import BitArray
-import unittest
 
 def bitEncode(text):
   ba = bitarray.bitarray()
@@ -276,80 +275,3 @@ def decodeDes(bitcode, key, iv):
   bitcode = bitcodeFromBlocks(decodedBlocks)
 
   return bitDecode(bitcode)
-
-class TestEncoding(unittest.TestCase):
-
-  def test_bit_ecoding(self):
-    self.assertEqual("Hello World!", bitDecode(bitEncode("Hello World!")))
-  
-  def test_blocks(self):
-    encoded = bitEncode("Hello World!")
-    blocks = toBlocks(encoded)
-    self.assertEqual("Hello World!", bitDecode(bitcodeFromBlocks(blocks)))
-  
-  def test_permutation(self):
-    encoded = bitEncode("Hello World!")
-    blocks = toBlocks(encoded)
-    permutatedBlocks = []
-
-    for block in blocks:
-      permutatedBlocks.append(initialPermutation(block))
-    
-    restoredBlocks = []
-
-    for block in permutatedBlocks:
-      restoredBlocks.append(endingPermutation(block))
-
-    self.assertEqual("Hello World!", bitDecode(bitcodeFromBlocks(restoredBlocks)))
-
-  def test_xor(self):
-    a = "1101101"
-    b = "1010110"
-    
-    self.assertEqual(xor(a, b), "0111011")
-
-  def test_f(self):
-    keys = generateKeys("abcdefg")
-    block = '1101111101000000110111101101001000000000101111101001110111010000'
-    L, R = block[:32], block[32:]
-
-    L1, R1 = L, R
-
-    for i in range(0, 16):
-      L = xor(L, F(R, keys[i]))
-      L, R = R, L
-
-    for i in range(15, -1, -1):
-      L, R = R, L
-      L = xor(L, F(R, keys[i]))
-
-    self.assertEqual(L1, L)
-    self.assertEqual(R1, R)
-
-  def test_s(self):
-    self.assertEqual("0101", S(0, "011011"))
-
-  def test_feistel(self):
-    encoded = bitEncode("Hello World!")
-    blocks = toBlocks(encoded)
-    keys = generateKeys("abcdefg")
-
-    encodedBlocks = []
-    
-    for block in blocks:
-      encodedBlocks.append(feistel(block, keys))
-
-    decodedBlocks = []
-
-    for block in encodedBlocks:
-      decodedBlocks.append(fromFeistel(block, keys))
-
-    bitcode = bitcodeFromBlocks(decodedBlocks)
-
-    self.assertEqual("Hello World!", bitDecode(bitcode))
-
-  def test_des(self):
-    self.assertEqual("Hello World!", decodeDes(encodeDES("Hello World!", "abcdefg", "foobar"), "abcdefg", "foobar"))
-
-if __name__ == "__main__":
-  unittest.main()
